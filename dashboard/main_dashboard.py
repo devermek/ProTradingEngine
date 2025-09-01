@@ -158,7 +158,7 @@ try:
     ALPHA_VANTAGE_API_KEY = st.secrets["alpha_vantage_api_key"]
 except KeyError:
     st.error("Erro: A API key da Alpha Vantage não foi encontrada em secrets.toml.")
-    st.info("Por favor, adicione sua chave em .streamlit/secrets.toml como 'alpha_vantage_api_key = "SUA_CHAVE_AQUI"'")
+    st.info("Por favor, adicione sua chave em .streamlit/secrets.toml como 'alpha_vantage_api_key = "Q43HY5S4MIT7P8XT"'")
     st.stop() # Para a execução do aplicativo se a chave não for encontrada
 
 # Inicializa os sistemas (agora passando a API_KEY)
