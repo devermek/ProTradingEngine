@@ -178,6 +178,8 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
                 
                 if collected_data:
                     st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+                    except Exception as e:
+    st.error(f"❌ Erro: {e}")
                     
              
                     # Salvar no banco (dados já convertidos anteriormente)
