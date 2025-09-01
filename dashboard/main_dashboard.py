@@ -179,29 +179,25 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
                 if collected_data:
                     st.success(f"✅ Coletados {len(collected_data)} símbolos!")
                     
-                    # Salvar no banco
-                    symbol_map = {
-                        "PBR": "PETR4.SA",
-                        "VALE": "VALE3.SA", 
-                        "ITUB": "ITUB4.SA",
-                        "BBDC": "BBDC4.SA"
-                    }
-                    
-                    for us_symbol, data in collected_data.items():
-                        br_symbol = symbol_map.get(us_symbol, us_symbol)
-                        try:
-                            # Converte USD para BRL (aproximação)
-                            price_brl = data['price'] * 5.0
-                            db.save_price_data(br_symbol, price_brl, data['volume'], 'alpha_vantage')
-                        except Exception as e:
-                            st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
-                    
-                    st.info("💾 Dados salvos no banco")
-                else:
-                    st.error("❌ Falha na coleta - verifique API key")
-                    
-            except Exception as e:
-                st.error(f"❌ Erro: {e}")
+             
+                    # Salvar no banco (dados já convertidos anteriormente)
+symbol_map = {
+    "PBR": "PETR4.SA",
+    "VALE": "VALE3.SA", 
+    "ITUB": "ITUB4.SA",
+    "BBDC": "BBDC4.SA"
+}
+
+saved_count = 0
+for us_symbol, data in collected_data.items():
+    br_symbol = symbol_map.get(us_symbol, us_symbol)
+    try:
+        # ✅ USA PREÇO ORIGINAL EM USD (sem conversão dupla)
+        price_usd = data['price']  # Mantém em USD
+        db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
+        saved_count += 1
+    except Exception as e:
+        st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
                 # Análise de estratégias
 if st.sidebar.button("💡 Analisar Estratégias", type="secondary"):
     with st.sidebar:
