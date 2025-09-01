@@ -378,8 +378,10 @@ with tab1:
             with [col1, col2, col3, col4][i]:
                 try:
                     latest_price = db.get_latest_price(symbol)
-                    if latest_price:
-                        st.metric(symbol.replace('.SA', ''), f"R$ {latest_price:.2f}", "📈")
+                   if latest_price:
+    # ✅ CONVERSÃO ÚNICA NA EXIBIÇÃO
+    price_brl = latest_price * 5.0  # USD → BRL
+    st.metric(symbol.replace('.SA', ''), f"R$ {price_brl:.2f}", "📈")
                     else:
                         st.metric(symbol.replace('.SA', ''), "N/A", "❌")
                 except:
