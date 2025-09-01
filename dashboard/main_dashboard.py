@@ -173,7 +173,7 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
     with st.sidebar:
         with st.spinner("Coletando dados Alpha Vantage..."):
             try:
-                us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
+                us_symbols = ["PBR", "VALE", "Itarget_price = latest_price * 1.05  # +5%TUB", "BBDC"]
                 collected_data = av_collector.get_multiple_quotes(us_symbols)
                 
                 if collected_data:
@@ -342,17 +342,19 @@ with tab1:
                         card_class = "signal-card-neutral"
                         
                         # Cálculos básicos
-                        target_price = latest_price * 1.05  # +5%
-                        stop_loss = latest_price * 0.95    # -5%
-                        
-                        st.markdown(f"""
-                        <div class="{card_class}">
-                            <h3>{emoji} {symbol.replace('.SA', '')}</h3>
-                            <h2>{signal_type}</h2>
-                            <p><strong>Força:</strong> {strength}/10</p>
-                            <p><strong>Preço:</strong> R$ {latest_price:.2f}</p>
-                            <p><strong>Alvo:</strong> R$ {target_price:.2f}</p>
-                            <p><strong>Stop:</strong> R$ {stop_loss:.2f}</p>
+                      # ✅ CONVERSÃO USD → BRL
+price_brl = latest_price * 5.0
+target_price = price_brl * 1.05  # +5%
+stop_loss = price_brl * 0.95    # -5%
+
+st.markdown(f"""
+<div class="{card_class}">
+    <h3>{emoji} {symbol.replace('.SA', '')}</h3>
+    <h2>{signal_type}</h2>
+    <p><strong>Força:</strong> {strength}/10</p>
+    <p><strong>Preço:</strong> R\$ {price_brl:.2f}</p>
+    <p><strong>Alvo:</strong> R\$ {target_price:.2f}</p>
+    <p><strong>Stop:</strong> R\$ {stop_loss:.2f}</p>
                             <small>Análise básica - aguardando indicadores técnicos</small>
                         </div>
                         """, unsafe_allow_html=True)
