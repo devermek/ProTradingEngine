@@ -12,10 +12,17 @@ from datetime import datetime, timedelta
 import sys
 import os
 
+# --- NOVAS IMPORTAÇÕES PARA O CACHE ---
+# Importa o CacheManager (embora o AlphaVantageCollector já o use internamente,
+# importamos aqui para tipagem e para passar ao show_cache_status)
+from core.cache_manager import CacheManager 
+from utils.cache_integration import show_cache_status # Importa a função de exibir status do cache
+# --- FIM DAS NOVAS IMPORTAÇÕES ---
+
 # Configuração da página
 st.set_page_config(
     page_title="ProTrading Engine v3.1.0",
-    page_icon="��",
+    page_icon="🏆",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -27,16 +34,15 @@ sys.path.append(parent_dir)
 
 # Imports do sistema
 try:
-    # Import direto das classes
-    import sys
-    import os
-    
-    # Adiciona o diretório atual ao path
+    # Adiciona o diretório atual ao path (redundante com a linha 24, mas não causa problema)
     current_path = os.path.dirname(os.path.abspath(__file__))
     parent_path = os.path.dirname(current_path)
-    sys.path.insert(0, parent_path)
+    # Garante que o diretório raiz do projeto esteja no path para importações relativas
+    if parent_path not in sys.path:
+        sys.path.insert(0, parent_path)
     
     # Imports das classes
+    # O seu AlphaVantageCollector agora precisará da API Key na inicialização
     from data.database import TradingDatabase
     from core.alert_system import AlertSystem  
     from core.trading_strategies import TradingStrategies
@@ -77,7 +83,7 @@ st.markdown("""
     }
     
     .alert-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: linear: #f093fb 0%, #f5576c 100%);
         padding: 1rem;
         border-radius: 10px;
         color: white;
@@ -120,16 +126,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Inicialização dos sistemas
-@st.cache_resource
-def init_systems():
+# Inicialização dos sistemas (REMOVIDO @st.cache_resource)
+def init_systems(api_key: str): # AGORA ACEITA A API KEY
     """Inicializa todos os sistemas"""
     try:
         db = TradingDatabase()
         alert_system = AlertSystem()
         strategies = TradingStrategies()
         options_collector = OptionsCollector()
-        av_collector = AlphaVantageCollector()
+        # Inicializa o AlphaVantageCollector com a API Key
+        av_collector = AlphaVantageCollector(api_key) 
         
         return db, alert_system, strategies, options_collector, av_collector
         
@@ -140,18 +146,49 @@ def init_systems():
 # Header principal
 st.markdown("""
 <div class="main-header">
-    <h1>🏆 ProTrading Engine v3.1.0</h1>
+    <h1>�� ProTrading Engine v3.1.0</h1>
     <h3>🌐 Alpha Vantage Integration + Sistema Completo</h3>
     <p>Desenvolvido por Deverson | Dados Reais + Análise Técnica + Opções</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Inicializar sistemas
-db, alert_system, strategies, options_collector, av_collector = init_systems()
+# --- INICIALIZAÇÃO DE API KEY E SISTEMAS ---
+# Lendo a API Key dos segredos do Streamlit
+try:
+    ALPHA_VANTAGE_API_KEY = st.secrets["alpha_vantage_api_key"]
+except KeyError:
+    st.error("Erro: A API key da Alpha Vantage não foi encontrada em secrets.toml.")
+    st.info("Por favor, adicione sua chave em .streamlit/secrets.toml como 'alpha_vantage_api_key = "SUA_CHAVE_AQUI"'")
+    st.stop() # Para a execução do aplicativo se a chave não for encontrada
 
-if not all([db, alert_system, strategies, options_collector, av_collector]):
-    st.error("❌ Falha na inicialização dos sistemas!")
-    st.stop()
+# Inicializa os sistemas (agora passando a API_KEY)
+# Usamos st.session_state para garantir que os objetos persistam
+if 'systems_initialized' not in st.session_state:
+    db, alert_system, strategies, options_collector, av_collector = init_systems(ALPHA_VANTAGE_API_KEY)
+    if not all([db, alert_system, strategies, options_collector, av_collector]):
+        st.error("❌ Falha na inicialização dos sistemas!")
+        st.stop()
+    st.session_state.db = db
+    st.session_state.alert_system = alert_system
+    st.session_state.strategies = strategies
+    st.session_state.options_collector = options_collector
+    st.session_state.av_collector = av_collector
+    st.session_state.systems_initialized = True
+else:
+    db = st.session_state.db
+    alert_system = st.session_state.alert_system
+    strategies = st.session_state.strategies
+    options_collector = st.session_state.options_collector
+    av_collector = st.session_state.av_collector
+
+# --- GESTÃO E EXIBIÇÃO DO CACHE ---
+# Limpa cache expirado automaticamente do coletor
+av_collector.cache.clear_expired()
+
+# Mostra status do cache na sidebar
+with st.sidebar:
+    show_cache_status(av_collector.cache) # Passa a instância do CacheManager do coletor
+# --- FIM DA GESTÃO E EXIBIÇÃO DO CACHE ---
 
 # Sidebar - Controles
 st.sidebar.markdown("## ⚙️ Controles do Sistema")
@@ -161,10 +198,14 @@ if st.sidebar.button("🧪 Testar Alpha Vantage", type="primary"):
     with st.sidebar:
         with st.spinner("Testando Alpha Vantage..."):
             try:
-                if av_collector.test_connection():
-                    st.success("✅ Alpha Vantage: Conectado!")
+                # O método test_connection precisa ser implementado ou
+                # verificar a funcionalidade de alguma forma
+                # Por exemplo, tentar pegar um dado simples
+                test_data = av_collector.get_company_overview("IBM")
+                if test_data and "Symbol" in test_data:
+                    st.success("✅ Alpha Vantage: Conectado e respondendo!")
                 else:
-                    st.error("❌ Alpha Vantage: Falha na conexão")
+                    st.error("❌ Alpha Vantage: Falha na conexão ou resposta inválida.")
             except Exception as e:
                 st.error(f"❌ Erro: {e}")
 
@@ -174,10 +215,29 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
         with st.spinner("Coletando dados Alpha Vantage..."):
             try:
                 us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
-                collected_data = av_collector.get_multiple_quotes(us_symbols)
+                # ATENÇÃO: get_multiple_quotes não existe no AlphaVantageCollector que te dei.
+                # Use get_stock_data para cada símbolo individualmente
                 
-                if collected_data:
-                    st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+                collected_data_summary = {}
+                for symbol_us in us_symbols:
+                    # Coleta dados diários (exemplo)
+                    data = av_collector.get_stock_data(symbol_us, interval="60min") # Ou outro intervalo
+                    if data and 'Time Series (60min)' in data: # Ajuste conforme a estrutura de dados da API
+                        # Pega o último preço (exemplo)
+                        last_timestamp = list(data['Time Series (60min)'].keys())[0]
+                        price = float(data['Time Series (60min)'][last_timestamp]['4. close'])
+                        volume = int(data['Time Series (60min)'][last_timestamp]['5. volume'])
+                        
+                        collected_data_summary[symbol_us] = {
+                            'price': price,
+                            'volume': volume,
+                            # Adicione outros campos se necessário para o save_price_data
+                        }
+                    else:
+                        st.warning(f"⚠️ Não foi possível coletar dados para {symbol_us}")
+
+                if collected_data_summary:
+                    st.success(f"✅ Coletados {len(collected_data_summary)} símbolos!")
                     
                     # Salvar no banco (SEM conversão dupla)
                     symbol_map = {
@@ -188,7 +248,7 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
                     }
                     
                     saved_count = 0
-                    for us_symbol, data in collected_data.items():
+                    for us_symbol, data in collected_data_summary.items():
                         br_symbol = symbol_map.get(us_symbol, us_symbol)
                         try:
                             # ✅ SALVA EM USD (sem conversão)
@@ -203,7 +263,11 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
                     st.error("❌ Falha na coleta de dados")
                     
             except Exception as e:
-                st.error(f"❌ Erro: {e}")
+                st.error(f"❌ Erro na coleta de dados: {e}")
+
+# O restante do seu código dashboard/main_dashboard.py continua abaixo
+# Esta é a primeira parte do arquivo, a segunda parte virá a seguir.
+# Continuação do arquivo dashboard/main_dashboard.py
 
 # Análise de estratégias
 if st.sidebar.button("💡 Analisar Estratégias", type="secondary"):
@@ -309,7 +373,7 @@ if st.sidebar.button("🔍 Verificar Alertas"):
                 if triggered_alerts:
                     st.warning(f"⚠️ {len(triggered_alerts)} alertas disparados!")
                     for alert in triggered_alerts:
-                        st.info(f"🔔 {alert}")
+                        st.info(f"�� {alert}")
                 else:
                     st.info("✅ Nenhum alerta disparado")
             except Exception as e:
@@ -468,7 +532,7 @@ with tab2:
             
             # Gráfico de volatilidade implícita
             if not df_options.empty:
-                st.markdown("### 📈 Volatilidade Implícita por Strike")
+                st.markdown("### �� Volatilidade Implícita por Strike")
                 
                 fig = px.scatter(
                     df_options, 
@@ -506,7 +570,7 @@ with tab3:
             st.metric("🔔 Alertas Ativos", active_alerts)
         
         with col2:
-            st.metric("�� Histórico", len(alert_history))
+            st.metric("📜 Histórico", len(alert_history))
         
         with col3:
             st.metric("⚡ Status", "🟢 Online")
@@ -515,7 +579,7 @@ with tab3:
         st.error(f"❌ Erro ao carregar alertas: {e}")
     
     # Histórico de alertas
-    st.markdown("### 📜 Histórico de Alertas")
+    st.markdown("### �� Histórico de Alertas")
     
     try:
         alert_history = db.get_alert_history(20)
@@ -536,14 +600,14 @@ with tab3:
                 """, unsafe_allow_html=True)
         else:
             st.info("📭 Nenhum alerta disparado ainda")
-            st.markdown("�� **Dica:** Crie alertas usando o formulário na sidebar")
+            st.markdown("💡 **Dica:** Crie alertas usando o formulário na sidebar")
     
     except Exception as e:
         st.error(f"❌ Erro no sistema de alertas: {e}")
 
 # TAB 4: Alpha Vantage
 with tab4:
-    st.markdown("## 🌐 Alpha Vantage - Dados Reais")
+    st.markdown("## �� Alpha Vantage - Dados Reais")
     
     # Status da API
     col1, col2, col3 = st.columns(3)
@@ -561,7 +625,7 @@ with tab4:
     with col2:
         st.markdown("""
         <div class="metric-card">
-            <h4>📈 Dados Disponíveis</h4>
+            <h4>�� Dados Disponíveis</h4>
             <p>• Cotações em tempo real</p>
             <p>• Dados históricos</p>
             <p>• Informações fundamentais</p>
@@ -587,14 +651,36 @@ with tab4:
         with st.spinner("Coletando dados Alpha Vantage..."):
             try:
                 us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
-                collected_data = av_collector.get_multiple_quotes(us_symbols)
+                # ATENÇÃO: get_multiple_quotes não existe no AlphaVantageCollector que te dei.
+                # Use get_stock_data para cada símbolo individualmente
                 
-                if collected_data:
-                    st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+                collected_data_summary = {}
+                for symbol_us in us_symbols:
+                    # Coleta dados diários (exemplo)
+                    data = av_collector.get_stock_data(symbol_us, interval="60min") # Ou outro intervalo
+                    if data and 'Time Series (60min)' in data: # Ajuste conforme a estrutura de dados da API
+                        # Pega o último preço (exemplo)
+                        last_timestamp = list(data['Time Series (60min)'].keys())[0]
+                        price = float(data['Time Series (60min)'][last_timestamp]['4. close'])
+                        volume = int(data['Time Series (60min)'][last_timestamp]['5. volume'])
+                        
+                        collected_data_summary[symbol_us] = {
+                            'price': price,
+                            'volume': volume,
+                            # Adicione outros campos se necessário para o save_price_data
+                        }
+                        # Não há 'change_percent', 'open', 'high', 'low' direto do get_stock_data que te passei
+                        # Você precisaria calcular isso se for exibir.
+                        # Por simplicidade, vou apenas mostrar os campos que temos certeza.
+                    else:
+                        st.warning(f"⚠️ Não foi possível coletar dados para {symbol_us}")
+
+                if collected_data_summary:
+                    st.success(f"✅ Coletados {len(collected_data_summary)} símbolos!")
                     
                     # Exibir dados
                     display_data = []
-                    for symbol, data in collected_data.items():
+                    for symbol, data in collected_data_summary.items():
                         br_name = {
                             "PBR": "Petrobras",
                             "VALE": "Vale",
@@ -607,11 +693,11 @@ with tab4:
                             'Empresa': br_name,
                             'Preço (USD)': f"${data['price']:.2f}",
                             'Preço (BRL)': f"R$ {data['price'] * 5.0:.2f}",
-                            'Variação (%)': f"{data['change_percent']:+.2f}%",
                             'Volume': f"{data['volume']:,}",
-                            'Abertura': f"${data['open']:.2f}",
-                            'Máxima': f"${data['high']:.2f}",
-                            'Mínima': f"${data['low']:.2f}"
+                            # 'Variação (%)': "N/A", # Não temos estes dados facilmente agora
+                            # 'Abertura': "N/A",
+                            # 'Máxima': "N/A",
+                            # 'Mínima': "N/A"
                         })
                     
                     df = pd.DataFrame(display_data)
@@ -626,7 +712,7 @@ with tab4:
                     }
                     
                     saved_count = 0
-                    for us_symbol, data in collected_data.items():
+                    for us_symbol, data in collected_data_summary.items():
                         br_symbol = symbol_map.get(us_symbol, us_symbol)
                         try:
                             # ✅ SALVA EM USD (conversão será feita na exibição)
@@ -639,10 +725,10 @@ with tab4:
                     st.info(f"💾 {saved_count} preços salvos no banco (USD)")
                 else:
                     st.error("❌ Falha na coleta de dados")
-                    st.info("🔧 Verifique a API key do Alpha Vantage")
+                    st.info("�� Verifique a API key do Alpha Vantage e os limites de requisição.")
                     
             except Exception as e:
-                st.error(f"❌ Erro: {e}")
+                st.error(f"❌ Erro na coleta manual de dados: {e}")
     
     # Últimos dados coletados
     st.markdown("### 💾 Últimos Dados no Banco")
@@ -671,7 +757,7 @@ with tab4:
             st.dataframe(df_recent, use_container_width=True)
         else:
             st.info("📭 Nenhum dado recente encontrado")
-            st.markdown("�� **Dica:** Use 'Coletar Alpha Vantage' na sidebar")
+            st.markdown("💡 **Dica:** Use 'Coletar Alpha Vantage' na sidebar")
     
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados recentes: {e}")
