@@ -173,34 +173,39 @@ if st.sidebar.button("🌐 Coletar Alpha Vantage", type="secondary"):
     with st.sidebar:
         with st.spinner("Coletando dados Alpha Vantage..."):
             try:
-                us_symbols = ["PBR", "VALE", "Itarget_price = latest_price * 1.05  # +5%TUB", "BBDC"]
+                us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
                 collected_data = av_collector.get_multiple_quotes(us_symbols)
                 
                 if collected_data:
                     st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+                    
+                    # Salvar no banco (SEM conversão dupla)
+                    symbol_map = {
+                        "PBR": "PETR4.SA",
+                        "VALE": "VALE3.SA", 
+                        "ITUB": "ITUB4.SA",
+                        "BBDC": "BBDC4.SA"
+                    }
+                    
+                    saved_count = 0
+                    for us_symbol, data in collected_data.items():
+                        br_symbol = symbol_map.get(us_symbol, us_symbol)
+                        try:
+                            # ✅ SALVA EM USD (sem conversão)
+                            price_usd = data['price']
+                            db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
+                            saved_count += 1
+                        except Exception as e:
+                            st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
+                    
+                    st.info(f"💾 {saved_count} preços salvos no banco (USD)")
+                else:
+                    st.error("❌ Falha na coleta de dados")
+                    
             except Exception as e:
                 st.error(f"❌ Erro: {e}")
-                    
-             
-                    # Salvar no banco (dados já convertidos anteriormente)
-symbol_map = {
-    "PBR": "PETR4.SA",
-    "VALE": "VALE3.SA", 
-    "ITUB": "ITUB4.SA",
-    "BBDC": "BBDC4.SA"
-}
 
-saved_count = 0
-for us_symbol, data in collected_data.items():
-    br_symbol = symbol_map.get(us_symbol, us_symbol)
-    try:
-        # ✅ USA PREÇO ORIGINAL EM USD (sem conversão dupla)
-        price_usd = data['price']  # Mantém em USD
-        db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
-        saved_count += 1
-    except Exception as e:
-        st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
-                # Análise de estratégias
+# Análise de estratégias
 if st.sidebar.button("💡 Analisar Estratégias", type="secondary"):
     with st.sidebar:
         with st.spinner("Analisando estratégias..."):
@@ -322,7 +327,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📈 Trading", "📊 Opções", "🔔 Alertas
 
 # TAB 1: Trading
 with tab1:
-    st.markdown("## �� Trading & Análise Técnica")
+    st.markdown("## 📈 Trading & Análise Técnica")
     
     # Sinais de Trading
     col1, col2 = st.columns(2)
@@ -343,20 +348,19 @@ with tab1:
                         emoji = "🟡"
                         card_class = "signal-card-neutral"
                         
-                        # Cálculos básicos
-                      # ✅ CONVERSÃO USD → BRL
-price_brl = latest_price * 5.0
-target_price = price_brl * 1.05  # +5%
-stop_loss = price_brl * 0.95    # -5%
+                        # ✅ CONVERSÃO USD → BRL
+                        price_brl = latest_price * 5.0
+                        target_price = price_brl * 1.05  # +5%
+                        stop_loss = price_brl * 0.95    # -5%
 
                         st.markdown(f"""
                         <div class="{card_class}">
                             <h3>{emoji} {symbol.replace('.SA', '')}</h3>
                             <h2>{signal_type}</h2>
                             <p><strong>Força:</strong> {strength}/10</p>
-                            <p><strong>Preço:</strong> R\$ {price_brl:.2f}</p>
-                            <p><strong>Alvo:</strong> R\$ {target_price:.2f}</p>
-                            <p><strong>Stop:</strong> R\$ {stop_loss:.2f}</p>
+                            <p><strong>Preço:</strong> R$ {price_brl:.2f}</p>
+                            <p><strong>Alvo:</strong> R$ {target_price:.2f}</p>
+                            <p><strong>Stop:</strong> R$ {stop_loss:.2f}</p>
                             <small>Análise básica - aguardando indicadores técnicos</small>
                         </div>
                         """, unsafe_allow_html=True)
@@ -382,10 +386,10 @@ stop_loss = price_brl * 0.95    # -5%
             with [col1, col2, col3, col4][i]:
                 try:
                     latest_price = db.get_latest_price(symbol)
-                   if latest_price:
-    # ✅ CONVERSÃO ÚNICA NA EXIBIÇÃO
-    price_brl = latest_price * 5.0  # USD → BRL
-    st.metric(symbol.replace('.SA', ''), f"R$ {price_brl:.2f}", "📈")
+                    if latest_price:
+                        # ✅ CONVERSÃO ÚNICA NA EXIBIÇÃO
+                        price_brl = latest_price * 5.0  # USD → BRL
+                        st.metric(symbol.replace('.SA', ''), f"R$ {price_brl:.2f}", "📈")
                     else:
                         st.metric(symbol.replace('.SA', ''), "N/A", "❌")
                 except:
@@ -403,12 +407,15 @@ stop_loss = price_brl * 0.95    # -5%
         price_history = db.get_price_history(selected_symbol, days=30)
         
         if not price_history.empty:
+            # ✅ CONVERSÃO NO GRÁFICO
+            price_history['price_brl'] = price_history['price'] * 5.0
+            
             fig = px.line(
                 price_history, 
                 x='timestamp', 
-                y='price',
+                y='price_brl',
                 title=f'Histórico de Preços - {selected_symbol}',
-                labels={'price': 'Preço (R$)', 'timestamp': 'Data'}
+                labels={'price_brl': 'Preço (R$)', 'timestamp': 'Data'}
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -417,7 +424,8 @@ stop_loss = price_brl * 0.95    # -5%
     
     except Exception as e:
         st.error(f"❌ Erro ao carregar histórico: {e}")
-        # TAB 2: Opções
+
+# TAB 2: Opções
 with tab2:
     st.markdown("## 📊 Análise de Opções")
     
@@ -498,7 +506,7 @@ with tab3:
             st.metric("🔔 Alertas Ativos", active_alerts)
         
         with col2:
-            st.metric("📊 Histórico", len(alert_history))
+            st.metric("�� Histórico", len(alert_history))
         
         with col3:
             st.metric("⚡ Status", "🟢 Online")
@@ -515,17 +523,20 @@ with tab3:
         if alert_history:
             # Mostrar alertas
             for alert in alert_history:
+                # ✅ CONVERSÃO NO ALERTA
+                price_brl = alert['current_price'] * 5.0
+                
                 st.markdown(f"""
                 <div class="alert-card">
                     <h4>🔔 {alert['symbol']}</h4>
                     <p>{alert['message']}</p>
-                    <small>Preço atual: R$ {alert['current_price']:.2f}</small>
+                    <small>Preço atual: R$ {price_brl:.2f}</small>
                     <br><small>Disparado em: {alert['triggered_at']}</small>
                 </div>
                 """, unsafe_allow_html=True)
         else:
             st.info("📭 Nenhum alerta disparado ainda")
-            st.markdown("💡 **Dica:** Crie alertas usando o formulário na sidebar")
+            st.markdown("�� **Dica:** Crie alertas usando o formulário na sidebar")
     
     except Exception as e:
         st.error(f"❌ Erro no sistema de alertas: {e}")
@@ -573,66 +584,67 @@ with tab4:
     st.markdown("### 📊 Coleta Manual de Dados")
     
     if st.button("🔄 Coletar Dados Agora", type="primary"):
-    with st.spinner("Coletando dados Alpha Vantage..."):
-        try:
-            us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
-            collected_data = av_collector.get_multiple_quotes(us_symbols)
-            
-            if collected_data:
-                st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+        with st.spinner("Coletando dados Alpha Vantage..."):
+            try:
+                us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
+                collected_data = av_collector.get_multiple_quotes(us_symbols)
                 
-                # Exibir dados
-                display_data = []
-                for symbol, data in collected_data.items():
-                    br_name = {
-                        "PBR": "Petrobras",
-                        "VALE": "Vale",
-                        "ITUB": "Itaú",
-                        "BBDC": "Bradesco"
-                    }.get(symbol, symbol)
+                if collected_data:
+                    st.success(f"✅ Coletados {len(collected_data)} símbolos!")
                     
-                    display_data.append({
-                        'Símbolo US': symbol,
-                        'Empresa': br_name,
-                        'Preço (USD)': f"${data['price']:.2f}",
-                        'Variação (%)': f"{data['change_percent']:+.2f}%",
-                        'Volume': f"{data['volume']:,}",
-                        'Abertura': f"${data['open']:.2f}",
-                        'Máxima': f"${data['high']:.2f}",
-                        'Mínima': f"${data['low']:.2f}"
-                    })
-                
-                df = pd.DataFrame(display_data)
-                st.dataframe(df, use_container_width=True)
-                
-                # ✅ SALVAR NO BANCO (SEM CONVERSÃO DUPLA)
-                symbol_map = {
-                    "PBR": "PETR4.SA",
-                    "VALE": "VALE3.SA", 
-                    "ITUB": "ITUB4.SA",
-                    "BBDC": "BBDC4.SA"
-                }
-                
-                saved_count = 0
-                for us_symbol, data in collected_data.items():
-                    br_symbol = symbol_map.get(us_symbol, us_symbol)
-                    try:
-                        # ✅ USA PREÇO ORIGINAL EM USD (sem conversão dupla)
-                        price_usd = data['price']  # Mantém em USD
-                        db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
-                        saved_count += 1
-                    except Exception as e:
-                        st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
-                
-                st.info(f"💾 {saved_count} preços salvos no banco (USD)")
-            else:
-                st.error("❌ Falha na coleta de dados")
-                st.info("🔧 Verifique a API key do Alpha Vantage")
-                
-        except Exception as e:
-            st.error(f"❌ Erro: {e}")
-            
-    # Último dados coletados
+                    # Exibir dados
+                    display_data = []
+                    for symbol, data in collected_data.items():
+                        br_name = {
+                            "PBR": "Petrobras",
+                            "VALE": "Vale",
+                            "ITUB": "Itaú",
+                            "BBDC": "Bradesco"
+                        }.get(symbol, symbol)
+                        
+                        display_data.append({
+                            'Símbolo US': symbol,
+                            'Empresa': br_name,
+                            'Preço (USD)': f"${data['price']:.2f}",
+                            'Preço (BRL)': f"R$ {data['price'] * 5.0:.2f}",
+                            'Variação (%)': f"{data['change_percent']:+.2f}%",
+                            'Volume': f"{data['volume']:,}",
+                            'Abertura': f"${data['open']:.2f}",
+                            'Máxima': f"${data['high']:.2f}",
+                            'Mínima': f"${data['low']:.2f}"
+                        })
+                    
+                    df = pd.DataFrame(display_data)
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # ✅ SALVAR NO BANCO (SEM CONVERSÃO DUPLA)
+                    symbol_map = {
+                        "PBR": "PETR4.SA",
+                        "VALE": "VALE3.SA", 
+                        "ITUB": "ITUB4.SA",
+                        "BBDC": "BBDC4.SA"
+                    }
+                    
+                    saved_count = 0
+                    for us_symbol, data in collected_data.items():
+                        br_symbol = symbol_map.get(us_symbol, us_symbol)
+                        try:
+                            # ✅ SALVA EM USD (conversão será feita na exibição)
+                            price_usd = data['price']
+                            db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
+                            saved_count += 1
+                        except Exception as e:
+                            st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
+                    
+                    st.info(f"💾 {saved_count} preços salvos no banco (USD)")
+                else:
+                    st.error("❌ Falha na coleta de dados")
+                    st.info("🔧 Verifique a API key do Alpha Vantage")
+                    
+            except Exception as e:
+                st.error(f"❌ Erro: {e}")
+    
+    # Últimos dados coletados
     st.markdown("### 💾 Últimos Dados no Banco")
     
     try:
@@ -642,9 +654,13 @@ with tab4:
         for symbol in symbols:
             latest = db.get_latest_price_data(symbol)
             if not latest.empty:
+                price_usd = latest.iloc[0]['price']
+                price_brl = price_usd * 5.0
+                
                 recent_data.append({
                     'Símbolo': symbol,
-                    'Preço (R$)': f"R$ {latest.iloc[0]['price']:.2f}",
+                    'Preço (USD)': f"${price_usd:.2f}",
+                    'Preço (BRL)': f"R$ {price_brl:.2f}",
                     'Volume': f"{latest.iloc[0]['volume']:,}",
                     'Fonte': latest.iloc[0]['source'],
                     'Timestamp': latest.iloc[0]['timestamp'][:19]
