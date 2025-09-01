@@ -567,65 +567,65 @@ with tab4:
     st.markdown("### 📊 Coleta Manual de Dados")
     
     if st.button("🔄 Coletar Dados Agora", type="primary"):
-        with st.spinner("Coletando dados Alpha Vantage..."):
-            try:
-                us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
-                collected_data = av_collector.get_multiple_quotes(us_symbols)
+    with st.spinner("Coletando dados Alpha Vantage..."):
+        try:
+            us_symbols = ["PBR", "VALE", "ITUB", "BBDC"]
+            collected_data = av_collector.get_multiple_quotes(us_symbols)
+            
+            if collected_data:
+                st.success(f"✅ Coletados {len(collected_data)} símbolos!")
                 
-                if collected_data:
-                    st.success(f"✅ Coletados {len(collected_data)} símbolos!")
+                # Exibir dados
+                display_data = []
+                for symbol, data in collected_data.items():
+                    br_name = {
+                        "PBR": "Petrobras",
+                        "VALE": "Vale",
+                        "ITUB": "Itaú",
+                        "BBDC": "Bradesco"
+                    }.get(symbol, symbol)
                     
-                    # Exibir dados
-                    display_data = []
-                    for symbol, data in collected_data.items():
-                        br_name = {
-                            "PBR": "Petrobras",
-                            "VALE": "Vale",
-                            "ITUB": "Itaú",
-                            "BBDC": "Bradesco"
-                        }.get(symbol, symbol)
-                        
-                        display_data.append({
-                            'Símbolo US': symbol,
-                            'Empresa': br_name,
-                            'Preço (USD)': f"${data['price']:.2f}",
-                            'Variação (%)': f"{data['change_percent']:+.2f}%",
-                            'Volume': f"{data['volume']:,}",
-                            'Abertura': f"${data['open']:.2f}",
-                            'Máxima': f"${data['high']:.2f}",
-                            'Mínima': f"${data['low']:.2f}"
-                        })
-                    
-                    df = pd.DataFrame(display_data)
-                    st.dataframe(df, use_container_width=True)
-                    
-                    # Salvar no banco
-                    symbol_map = {
-                        "PBR": "PETR4.SA",
-                        "VALE": "VALE3.SA", 
-                        "ITUB": "ITUB4.SA",
-                        "BBDC": "BBDC4.SA"
-                    }
-                    
-                    saved_count = 0
-                    for us_symbol, data in collected_data.items():
-                        br_symbol = symbol_map.get(us_symbol, us_symbol)
-                        try:
-                            # Converte USD para BRL (aproximação)
-                            price_brl = data['price'] * 5.0
-                            db.save_price_data(br_symbol, price_brl, data['volume'], 'alpha_vantage')
-                            saved_count += 1
-                        except Exception as e:
-                            st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
-                    
-                    st.info(f"💾 {saved_count} preços convertidos e salvos no banco")
-                else:
-                    st.error("❌ Falha na coleta de dados")
-                    st.info("🔧 Verifique a API key do Alpha Vantage")
-                    
-            except Exception as e:
-                st.error(f"❌ Erro: {e}")
-    
+                    display_data.append({
+                        'Símbolo US': symbol,
+                        'Empresa': br_name,
+                        'Preço (USD)': f"${data['price']:.2f}",
+                        'Variação (%)': f"{data['change_percent']:+.2f}%",
+                        'Volume': f"{data['volume']:,}",
+                        'Abertura': f"${data['open']:.2f}",
+                        'Máxima': f"${data['high']:.2f}",
+                        'Mínima': f"${data['low']:.2f}"
+                    })
+                
+                df = pd.DataFrame(display_data)
+                st.dataframe(df, use_container_width=True)
+                
+                # ✅ SALVAR NO BANCO (SEM CONVERSÃO DUPLA)
+                symbol_map = {
+                    "PBR": "PETR4.SA",
+                    "VALE": "VALE3.SA", 
+                    "ITUB": "ITUB4.SA",
+                    "BBDC": "BBDC4.SA"
+                }
+                
+                saved_count = 0
+                for us_symbol, data in collected_data.items():
+                    br_symbol = symbol_map.get(us_symbol, us_symbol)
+                    try:
+                        # ✅ USA PREÇO ORIGINAL EM USD (sem conversão dupla)
+                        price_usd = data['price']  # Mantém em USD
+                        db.save_price_data(br_symbol, price_usd, data['volume'], 'alpha_vantage')
+                        saved_count += 1
+                    except Exception as e:
+                        st.warning(f"⚠️ Erro ao salvar {us_symbol}: {e}")
+                
+                st.info(f"💾 {saved_count} preços salvos no banco (USD)")
+            else:
+                st.error("❌ Falha na coleta de dados")
+                st.info("🔧 Verifique a API key do Alpha Vantage")
+                
+        except Exception as e:
+            st.error(f"❌ Erro: {e}")
+            
     # Último dados coletados
     st.markdown("### 💾 Últimos Dados no Banco")
     
