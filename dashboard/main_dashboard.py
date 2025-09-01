@@ -349,14 +349,14 @@ price_brl = latest_price * 5.0
 target_price = price_brl * 1.05  # +5%
 stop_loss = price_brl * 0.95    # -5%
 
-st.markdown(f"""
-<div class="{card_class}">
-    <h3>{emoji} {symbol.replace('.SA', '')}</h3>
-    <h2>{signal_type}</h2>
-    <p><strong>Força:</strong> {strength}/10</p>
-    <p><strong>Preço:</strong> R\$ {price_brl:.2f}</p>
-    <p><strong>Alvo:</strong> R\$ {target_price:.2f}</p>
-    <p><strong>Stop:</strong> R\$ {stop_loss:.2f}</p>
+                        st.markdown(f"""
+                        <div class="{card_class}">
+                            <h3>{emoji} {symbol.replace('.SA', '')}</h3>
+                            <h2>{signal_type}</h2>
+                            <p><strong>Força:</strong> {strength}/10</p>
+                            <p><strong>Preço:</strong> R\$ {price_brl:.2f}</p>
+                            <p><strong>Alvo:</strong> R\$ {target_price:.2f}</p>
+                            <p><strong>Stop:</strong> R\$ {stop_loss:.2f}</p>
                             <small>Análise básica - aguardando indicadores técnicos</small>
                         </div>
                         """, unsafe_allow_html=True)
