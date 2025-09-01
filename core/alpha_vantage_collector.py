@@ -11,6 +11,73 @@ import time
 import random
 from datetime import datetime, timedelta
 import pandas as pd
+# No início do arquivo, adicione esta importação:
+from .cache_manager import CacheManager
+
+# Na classe AlphaVantageCollector, adicione no __init__:
+class AlphaVantageCollector:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://www.alphavantage.co/query"
+        # ADICIONE ESTA LINHA:
+        self.cache = CacheManager()
+    
+    def get_stock_data(self, symbol: str, interval: str = "5min") -> dict:
+        """Coleta dados de ações com cache inteligente"""
+        
+        # ADICIONE ESTE BLOCO ANTES DA CHAMADA DA API:
+        # Verifica cache primeiro
+        cached_data = self.cache.get(symbol, "stock_data", interval=interval, ttl_minutes=3)
+        if cached_data:
+            return cached_data
+        
+        # Código original da API...
+        params = {
+            "function": "TIME_SERIES_INTRADAY",
+            "symbol": symbol,
+            "interval": interval,
+            "apikey": self.api_key
+        }
+        
+        try:
+            response = requests.get(self.base_url, params=params)
+            data = response.json()
+            
+            # ADICIONE ESTA LINHA ANTES DO RETURN:
+            self.cache.set(symbol, "stock_data", data, interval=interval)
+            
+            return data
+        except Exception as e:
+            st.error(f"Erro ao coletar dados: {e}")
+            return {}
+    
+    def get_company_overview(self, symbol: str) -> dict:
+        """Coleta informações da empresa com cache de longa duração"""
+        
+        # ADICIONE ESTE BLOCO:
+        # Cache de 30 minutos para dados da empresa
+        cached_data = self.cache.get(symbol, "company_overview", ttl_minutes=30)
+        if cached_data:
+            return cached_data
+        
+        # Código original...
+        params = {
+            "function": "OVERVIEW",
+            "symbol": symbol,
+            "apikey": self.api_key
+        }
+        
+        try:
+            response = requests.get(self.base_url, params=params)
+            data = response.json()
+            
+            # ADICIONE ESTA LINHA:
+            self.cache.set(symbol, "company_overview", data)
+            
+            return data
+        except Exception as e:
+            st.error(f"Erro ao coletar overview: {e}")
+            return {}
 
 class AlphaVantageCollector:
     def __init__(self):
